@@ -30,3 +30,6 @@ deploy: build
 
 run: requirements
 	python3 -m docman
+
+tag:
+	git tag -a 0.0.2 -m 'Added GO HOME command'

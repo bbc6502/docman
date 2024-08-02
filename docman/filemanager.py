@@ -28,10 +28,11 @@ class FileManager:
              ['OPEN <index>']),
             (('RENAME',), 'Rename Entry', self.rename_entry,
              ['RENAME <index> TO <new-name>']),
-            (('GO', 'GOTO'), 'Go to Entry', self.go_to_entry,
+            (('GO', 'GOTO'), 'Go to an Entry', self.go_to_entry,
              ['GO TO <index>',
               'GOTO <index>',
-              'GO BACK']),
+              'GO BACK',
+              'GO HOME']),
             (('RETURN',), 'Return to prior Entry', self.go_back,
              ['RETURN']),
             (('DELETE',), 'Delete an Entry', self.delete_entry,
@@ -65,6 +66,10 @@ class FileManager:
             self._list_entries = None
             if os.path.lexists(self._cur_dir()):
                 return
+        return
+
+    def _pop_to_home(self):
+        self._dir_history = [self._dir_history[0]]
         return
 
     def list_entries(self, request: List[str]):
@@ -197,6 +202,9 @@ class FileManager:
             if request[0].upper() == 'TO':
                 request.pop(0)
         if len(request) == 1:
+            if request[0].upper() == 'HOME':
+                self._pop_to_home()
+                return
             if request[0].upper() == 'BACK':
                 self._pop_dir_path()
                 return
