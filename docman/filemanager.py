@@ -287,6 +287,8 @@ class FileManager:
 
 def main():
     default_folder = os.path.join(os.getenv('HOME'), '.local', 'docman')
+    if os.getenv('DOCMAN_HOME') is not None:
+        default_folder = os.getenv('DOCMAN_HOME')
     parser = ArgumentParser(description='Document Manager')
     parser.add_argument('-f', '--folder', help='Main Folder', default=default_folder)
     args = parser.parse_args()

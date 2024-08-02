@@ -43,6 +43,20 @@ The following commands are supported:
     QUIT
     EXIT
 
+## INSTALLATION
+
+    pip install --user --upgrade docman
+
+## RUNNING
+
+    docman
+    or
+    docman -f <start-folder>
+
+## ENVIRONMENT VARIABLES
+
+    DOCMAN_HOME = Default <start-folder> for docman
+
 ## PROJECT STATUS
 
     This project is just starting and is alpha status. 

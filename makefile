@@ -32,4 +32,4 @@ run: requirements
 	python3 -m docman
 
 tag:
-	git tag -a 0.0.2 -m 'Added GO HOME command'
+	git tag -a 0.0.3 -m 'Get the start folder from the DOCMAN_HOME environment variable if it exists'
