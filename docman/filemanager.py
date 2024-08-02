@@ -15,7 +15,7 @@ class FileManager:
         self._menu_items = [
             (('MENU',), 'Menu', self.menu,
              ['MENU']),
-            (('LIST',), 'List Entries', self.list_entries,
+            (('LIST','LS'), 'List Entries', self.list_entries,
              ['LIST',
               'LIST LIKE <pattern>...',
               'LIST LINKS',
@@ -28,7 +28,7 @@ class FileManager:
              ['OPEN <index>']),
             (('RENAME',), 'Rename Entry', self.rename_entry,
              ['RENAME <index> TO <new-name>']),
-            (('GO', 'GOTO'), 'Go to an Entry', self.go_to_entry,
+            (('GO', 'GOTO', 'CD'), 'Go to an Entry', self.go_to_entry,
              ['GO TO <index>',
               'GOTO <index>',
               'GO BACK',
@@ -205,7 +205,7 @@ class FileManager:
             if request[0].upper() == 'HOME':
                 self._pop_to_home()
                 return
-            if request[0].upper() == 'BACK':
+            if request[0].upper() == 'BACK' or request[0] == '..':
                 self._pop_dir_path()
                 return
             entry, index = self._lookup_index_entry(request[0])
