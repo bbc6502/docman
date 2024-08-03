@@ -42,6 +42,8 @@ class FileManager:
              ['DELETE <index>']),
             (('MERGE',), 'Merge two entries', self.merge_entry,
              ['MERGE <index-1> INTO <index-2>']),
+            (('VERIFY',), 'Verify database', self.verify_database,
+             ['VERIFY']),
             (('HELP',), 'Help', self.help,
              ['HELP <command>']),
             (('QUIT', 'EXIT'), 'Quit App', self.quit_app,
@@ -76,6 +78,46 @@ class FileManager:
     def _pop_to_home(self):
         self._dir_history = [self._dir_history[0]]
         return
+
+    def verify_database(self, request: List[str]):
+        count_dirs = 0
+        count_files = 0
+        count_links = 0
+        count_errors = 0
+        for root_path, dir_names, file_names in os.walk(self._database_dir):
+            entry_count, link_count, error_count = self._verify_entries(root_path, dir_names)
+            count_dirs += entry_count
+            count_links += link_count
+            count_errors += error_count
+            entry_count, link_count, error_count = self._verify_entries(root_path, file_names)
+            count_files += entry_count
+            count_links += link_count
+            count_errors += error_count
+        if count_errors > 0:
+            print()
+            print(f'{green}{count_dirs} Folders , {count_files} Files , {count_links} References, {red}{count_errors} Errors{black}')
+        else:
+            print(f'{green}{count_dirs} Folders , {count_files} Files , {count_links} References, {count_errors} Errors{black}')
+
+    def _verify_entries(self, root_path, dir_names) -> Tuple[int, int, int]:
+        count_entries = 0
+        count_links = 0
+        count_errors = 0
+        for dir_name in dir_names:
+            dir_path = os.path.join(root_path, dir_name)
+            if os.path.islink(dir_path):
+                count_links += 1
+                real_path = os.path.realpath(dir_path)
+                rel_path = self.rel_path(real_path)
+                if not os.path.lexists(real_path):
+                    print(f'{red}Missing target {rel_path}')
+                    count_errors += 1
+                elif not rel_path.startswith('Database/'):
+                    print(f'{red}Reference to external resource {rel_path}')
+                    count_errors += 1
+            else:
+                count_entries += 1
+        return count_entries, count_links, count_errors
 
     def list_entries(self, request: List[str]):
         like = None
