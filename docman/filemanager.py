@@ -105,11 +105,16 @@ class FileManager:
             if request[0].upper() == 'AGAIN':
                 self._list_current_entries(show_links)
                 return
-        if len(request) > 1:
-            if request[0].upper() == 'LIKE':
-                like = ' '.join(request[1:]).upper()
-        self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if like is None or like in entry.upper()])
+        likes = [r.upper() for r in request[1:]] if len(request) > 1 and request[0].upper() == 'LIKE' else []
+        self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if self._is_like(entry, likes)])
         self._list_current_entries(show_links)
+
+    def _is_like(self, entry: str, likes: List[str]):
+        entry = entry.upper()
+        for like in likes:
+            if like not in entry:
+                return False
+        return True
 
     def _list_references_to_entry(self, entry_path):
         references = self._find_references(entry_path)
