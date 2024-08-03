@@ -159,39 +159,30 @@ class FileManager:
             if not os.path.lexists(entry_path):
                 raise ValueError(f'"{entry}" does not exist')
             if os.path.islink(entry_path):
-                link_target = os.readlink(entry_path)
-                if os.path.isdir(entry_path) or os.path.isfile(entry_path):
-                    os.symlink(link_target, new_path)
-                    if not os.path.lexists(new_path):
-                        raise ValueError(f'Failed to create "{new_name}"')
-                    self._list_entries[index-1] = new_name
-                    self._list_entries.sort()
-                    os.remove(entry_path)
-                    if os.path.lexists(entry_path):
-                        raise ValueError(f'Failed to remove old entry "{entry}"')
-                    self._list_current_entries()
-                    return
-                else:
-                    raise ValueError(f'Not allowed to change the entry')
+                self._rename_link(index, entry_path, new_path, new_name)
+                return
             else:
-                if os.path.isdir(entry_path):
-                    references = self._find_references(entry_path)
-                    print(f'{red}Not implemented yet for directories{black}')
-                    return
-                elif os.path.isfile(entry_path):
-                    os.rename(entry_path, new_path)
-                    if not os.path.lexists(new_path) or os.path.lexists(entry_path):
-                        raise ValueError(f'Failed to rename to "{new_name}"')
-                    self._list_entries[index-1] = new_name
-                    self._list_entries.sort()
-                    self._list_current_entries()
-                    return
-                else:
-                    raise ValueError(f'Not allowed to change the entry')
+                self._rename_file_or_directory(index, entry_path, new_path, new_name)
+                return
         self.help(['RENAME'])
 
     def _find_references(self, entry_path: str) -> List[str]:
-        pass
+        real_path = os.path.realpath(entry_path)
+        references: List[str] = []
+        for root_path, dir_names, file_names in os.walk(self._database_dir):
+            for file_name in file_names:
+                file_path = os.path.join(root_path, file_name)
+                if os.path.islink(file_path):
+                    target = os.path.realpath(file_path)
+                    if target == real_path:
+                        references.append(file_path)
+            for dir_name in dir_names:
+                dir_path = os.path.join(root_path, dir_name)
+                if os.path.islink(dir_path):
+                    target = os.path.realpath(dir_path)
+                    if target == real_path:
+                        references.append(dir_path)
+        return references
 
     def go_back(self, request: List[str]):
         self._pop_dir_path()
@@ -283,6 +274,55 @@ class FileManager:
                         self._last_error = e
                     return
             self._last_error = ValueError(f'Action "{action}" is not recognised')
+
+    def _rename_link(self, index, entry_path, new_path, new_name):
+        link_target = os.readlink(entry_path)
+        if os.path.isdir(entry_path) or os.path.isfile(entry_path):
+            os.symlink(link_target, new_path)
+            if not os.path.lexists(new_path):
+                raise ValueError(f'Failed to create "{new_name}"')
+            self._list_entries[index - 1] = new_name
+            self._list_entries.sort()
+            os.remove(entry_path)
+            if os.path.lexists(entry_path):
+                raise ValueError(f'Failed to remove old entry "{entry_path}"')
+            self._list_current_entries()
+        else:
+            raise ValueError(f'Not allowed to change the entry')
+
+    def _rename_file_or_directory(self, index, entry_path, new_path, new_name):
+        if os.path.isdir(entry_path):
+            os.rename(entry_path, new_path)
+            if not os.path.lexists(new_path) or os.path.lexists(entry_path):
+                raise ValueError(f'Failed to rename to "{new_name}"')
+            self._relink_references(entry_path, new_path)
+            self._list_entries[index - 1] = new_name
+            self._list_entries.sort()
+            self._list_current_entries()
+        elif os.path.isfile(entry_path):
+            os.rename(entry_path, new_path)
+            if not os.path.lexists(new_path) or os.path.lexists(entry_path):
+                raise ValueError(f'Failed to rename to "{new_name}"')
+            self._relink_references(entry_path, new_path)
+            self._list_entries[index - 1] = new_name
+            self._list_entries.sort()
+            self._list_current_entries()
+        else:
+            raise ValueError(f'Not allowed to change the entry')
+
+    def _relink_references(self, entry_path, new_path):
+        real_path = os.path.realpath(entry_path)
+        references = self._find_references(entry_path)
+        for reference_path in references:
+            if os.path.islink(reference_path):
+                if os.path.realpath(reference_path) == real_path:
+                    link_target = os.path.relpath(new_path, os.path.dirname(reference_path))
+                    os.remove(reference_path)
+                    if os.path.lexists(reference_path):
+                        raise ValueError(f'Failed to remove the old link at {reference_path}')
+                    os.symlink(link_target, reference_path)
+                    if not os.path.lexists(reference_path):
+                        raise ValueError(f'Failed to relink {reference_path} to {link_target}')
 
 
 def main():
