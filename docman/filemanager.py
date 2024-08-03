@@ -1,3 +1,4 @@
+import filecmp
 import os
 import sys
 from argparse import ArgumentParser
@@ -39,6 +40,8 @@ class FileManager:
              ['RETURN']),
             (('DELETE',), 'Delete an Entry', self.delete_entry,
              ['DELETE <index>']),
+            (('MERGE',), 'Merge two entries', self.merge_entry,
+             ['MERGE <index-1> INTO <index-2>']),
             (('HELP',), 'Help', self.help,
              ['HELP <command>']),
             (('QUIT', 'EXIT'), 'Quit App', self.quit_app,
@@ -90,7 +93,6 @@ class FileManager:
         if len(request) > 1:
             if show_references:
                 if request[0].upper() == 'TO':
-                    request.pop(0)
                     entry, index, entry_path = self._lookup_index_entry(request[1])
                     self._list_references_to_entry(entry_path)
                     return
@@ -176,7 +178,7 @@ class FileManager:
             raise ValueError(f'Do not currently support deleting folders or files')
         self.help(['DELETE'])
 
-    def rename_entry(self, request:List[str]):
+    def rename_entry(self, request: List[str]):
         if len(request) >= 3:
             if request[1].upper() != 'TO':
                 self.help(['RENAME'])
@@ -195,6 +197,71 @@ class FileManager:
                 self._rename_file_or_directory(index, entry_path, new_path, new_name)
                 return
         self.help(['RENAME'])
+
+    def merge_entry(self, request: List[str]):
+        if len(request) != 3:
+            self.help(['MERGE'])
+            return
+        if request[1].upper() != 'INTO':
+            self.help(['MERGE'])
+            return
+        from_entry, from_index, from_entry_path = self._lookup_index_entry(request[0])
+        into_entry, into_index, into_entry_path = self._lookup_index_entry(request[2])
+        if os.path.islink(from_entry_path) or os.path.islink(into_entry_path):
+            raise ValueError(f'Cannot merge references')
+        if os.path.isfile(from_entry_path) or os.path.isfile(into_entry_path):
+            raise ValueError(f'Cannot merge files')
+        if not os.path.isdir(from_entry_path) or not os.path.isdir(into_entry_path):
+            raise ValueError(f'Can only merge folders')
+        for entry in os.listdir(from_entry_path):
+            from_path = os.path.join(from_entry_path, entry)
+            into_path = os.path.join(into_entry_path, entry)
+            if os.path.islink(from_path) or os.path.islink(into_path):
+                self._merge_link(entry, from_path, into_path)
+                continue
+            if os.path.isfile(from_path) or os.path.isfile(into_path):
+                self._merge_file(entry, from_path, into_path)
+                continue
+            if os.path.isdir(from_path) or os.path.isdir(into_path):
+                raise ValueError(f'Do not support merging folders "{entry}"')
+        remainder = os.listdir(from_entry_path)
+        if len(remainder) == 0:
+            self._relink_references(from_entry_path, into_entry_path)
+            os.rmdir(from_entry_path)
+            if os.path.lexists(from_entry_path):
+                raise ValueError(f'Could not remove {from_entry}')
+            del self._list_entries[from_index - 1]
+            self._list_current_entries()
+
+    def _merge_link(self, entry, from_path, into_path):
+        if not os.path.lexists(into_path):
+            os.rename(from_path, into_path)
+            if not os.path.lexists(into_path):
+                raise ValueError(f'Failed to merge "{self.rel_path(into_path)}"')
+            return
+        if not os.path.islink(from_path) or not os.path.islink(into_path):
+            raise ValueError(f'Cannot merge reference and non reference "{entry}"')
+        from_target = os.path.realpath(from_path)
+        into_target = os.path.realpath(into_path)
+        if from_target != into_target:
+            raise ValueError(f'Cannot merge different references named "{entry}"')
+        os.remove(from_path)
+        if os.path.lexists(from_path):
+            raise ValueError(f'Failed to remove "{self.rel_path(from_path)}"')
+
+    def _merge_file(self, entry, from_path, into_path):
+        if not os.path.lexists(into_path):
+            os.rename(from_path, into_path)
+            if not os.path.lexists(into_path):
+                raise ValueError(f'Failed to merge "{self.rel_path(into_path)}"')
+            return
+        if not os.path.isfile(from_path) or not os.path.isfile(into_path):
+            raise ValueError(f'Cannot merge file and not file "{entry}"')
+        if not filecmp.cmp(from_path, into_path, shallow=False):
+            raise ValueError(f'Cannot merge files which are different "{entry}"')
+        os.remove(from_path)
+        if os.path.lexists(from_path):
+            raise ValueError(f'Failed to remove "{self.rel_path(from_path)}"')
 
     def _find_references(self, entry_path: str) -> List[str]:
         real_path = os.path.realpath(entry_path)
@@ -341,6 +408,7 @@ class FileManager:
             raise ValueError(f'Not allowed to change the entry')
 
     def _relink_references(self, entry_path, new_path):
+        """Relink references to entry_path to point to new_path"""
         real_path = os.path.realpath(entry_path)
         references = self._find_references(entry_path)
         for reference_path in references:
