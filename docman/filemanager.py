@@ -17,8 +17,11 @@ class FileManager:
              ['MENU']),
             (('LIST','LS'), 'List Entries', self.list_entries,
              ['LIST',
-              'LIST LIKE <pattern>...',
+              'LIST [ENTRIES] LIKE <pattern>...',
               'LIST LINKS',
+              'LIST REFERENCES TO <index>',
+              'LIST REFS TO <index>',
+              'LIST [ENTRIES] IN <index>',
               'LIST LINKS LIKE <pattern>...',
               'LIST AGAIN',
               'LIST LINKS AGAIN']),
@@ -75,10 +78,28 @@ class FileManager:
     def list_entries(self, request: List[str]):
         like = None
         show_links = False
+        show_references = False
         if len(request) > 0:
-            if request[0].upper() == 'LINKS':
+            if request[0].upper() == 'ENTRIES':
+                request.pop(0)
+            elif request[0].upper() == 'LINKS':
                 show_links = True
                 request.pop(0)
+            elif request[0].upper() in ('REFS', 'REFERENCES'):
+                show_references = True
+                request.pop(0)
+        if len(request) > 1:
+            if show_references:
+                if request[0].upper() == 'TO':
+                    request.pop(0)
+                    entry, index, entry_path = self._lookup_index_entry(request[1])
+                    self._list_references_to_entry(entry_path)
+                    return
+                raise ValueError(f'Expected LIST REFERENCES TO <index>')
+            if request[0].upper() == 'IN':
+                entry, index, entry_path = self._lookup_index_entry(request[1])
+                self._list_entries_in_entry(entry_path)
+                return
         if len(request) > 0:
             if request[0].upper() == 'AGAIN':
                 self._list_current_entries(show_links)
@@ -89,9 +110,22 @@ class FileManager:
         self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if like is None or like in entry.upper()])
         self._list_current_entries(show_links)
 
+    def _list_references_to_entry(self, entry_path):
+        references = self._find_references(entry_path)
+        for index, reference in enumerate(references):
+            if os.path.isdir(reference):
+                print(f'{blue}{index + 1:3} - {self.rel_path(reference)}{black}')
+            elif os.path.isfile(reference):
+                print(f'{purple}{index + 1:3} - {self.rel_path(reference)}{black}')
+            else:
+                print(f'{red}{index + 1:3} - {self.rel_path(reference)}{black}')
+
     def _list_current_entries(self, show_links=False):
-        for index, entry in enumerate(self._list_entries):
-            entry_path = os.path.join(self._cur_dir(), entry)
+        self._list_relative_entries(self._list_entries, self._cur_dir(), show_links=show_links)
+
+    def _list_relative_entries(self, entries, entry_dir, show_links=False):
+        for index, entry in enumerate(entries):
+            entry_path = os.path.join(entry_dir, entry)
             if os.path.islink(entry_path):
                 link_target = self.rel_path(os.path.realpath(entry_path))
                 if os.path.isdir(entry_path):
@@ -121,8 +155,7 @@ class FileManager:
 
     def open_entry(self, request: List[str]):
         for item in request:
-            entry, index = self._lookup_index_entry(item)
-            entry_path = os.path.join(self._cur_dir(), entry)
+            entry, index, entry_path = self._lookup_index_entry(item)
             if os.path.lexists(entry_path):
                 if os.path.isfile(entry_path):
                     print(f'{green}Open {self.rel_path(entry_path)}{black}')
@@ -130,8 +163,7 @@ class FileManager:
 
     def delete_entry(self, request: List[str]):
         if len(request) == 1:
-            entry, index = self._lookup_index_entry(request[0])
-            entry_path = os.path.join(self._cur_dir(), entry)
+            entry, index, entry_path = self._lookup_index_entry(request[0])
             if not os.path.lexists(entry_path):
                 raise ValueError(f'"{entry}" does not exist')
             if os.path.islink(entry_path):
@@ -150,12 +182,11 @@ class FileManager:
             if request[1].upper() != 'TO':
                 self.help(['RENAME'])
                 return
-            entry, index = self._lookup_index_entry(request[0])
+            entry, index, entry_path = self._lookup_index_entry(request[0])
             new_name = ' '.join(request[2:])
             new_path = os.path.join(self._cur_dir(), new_name)
             if os.path.lexists(new_path):
                 raise ValueError(f'"{new_name}" already exists')
-            entry_path = os.path.join(self._cur_dir(), entry)
             if not os.path.lexists(entry_path):
                 raise ValueError(f'"{entry}" does not exist')
             if os.path.islink(entry_path):
@@ -199,8 +230,8 @@ class FileManager:
             if request[0].upper() == 'BACK' or request[0] == '..':
                 self._pop_dir_path()
                 return
-            entry, index = self._lookup_index_entry(request[0])
-            new_path = os.path.realpath(os.path.join(self._cur_dir(), entry))
+            entry, index, entry_path = self._lookup_index_entry(request[0])
+            new_path = os.path.realpath(entry_path)
             if not os.path.isdir(new_path):
                 raise ValueError(f'Not a directory: {self.rel_path(new_path)}')
             if not new_path.startswith(self._database_dir):
@@ -209,13 +240,13 @@ class FileManager:
             return
         self.help(['GO'])
 
-    def _lookup_index_entry(self, index: str) -> Tuple[str, int]:
+    def _lookup_index_entry(self, index: str) -> Tuple[str, int, str]:
         if not index.isdigit():
             raise ValueError(f'Index "{index}" is not a number')
         index = int(index)
         if index < 1 or index > len(self._list_entries):
             raise ValueError(f'Index "{index}" out of range')
-        return self._list_entries[index-1], index
+        return self._list_entries[index-1], index, os.path.join(self._cur_dir(), self._list_entries[index-1])
 
     def help(self, request: List[str]):
         if len(request) > 0:
@@ -323,6 +354,10 @@ class FileManager:
                     os.symlink(link_target, reference_path)
                     if not os.path.lexists(reference_path):
                         raise ValueError(f'Failed to relink {reference_path} to {link_target}')
+
+    def _list_entries_in_entry(self, entry_path):
+        entries = sorted([entry for entry in os.listdir(entry_path)])
+        self._list_relative_entries(entries, entry_path)
 
 
 def main():
