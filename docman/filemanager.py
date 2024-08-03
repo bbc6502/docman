@@ -213,32 +213,69 @@ class FileManager:
         from_entry, from_index, from_entry_path = self._lookup_index_entry(request[0])
         into_entry, into_index, into_entry_path = self._lookup_index_entry(request[2])
         if os.path.islink(from_entry_path) or os.path.islink(into_entry_path):
-            raise ValueError(f'Cannot merge references')
+            self._merge_links(from_entry, from_index, from_entry_path, into_entry_path)
+            return
         if os.path.isfile(from_entry_path) or os.path.isfile(into_entry_path):
             raise ValueError(f'Cannot merge files')
+        self._merge_directory_contents(from_entry_path, into_entry_path)
+        if self._relink_merged_from_entry(from_entry_path, into_entry_path):
+            del self._list_entries[from_index - 1]
+            self._list_current_entries()
+
+
+    def _relink_merged_from_entry(self, from_entry_path, into_entry_path) -> bool:
+        remainder = os.listdir(from_entry_path)
+        if len(remainder) == 0:
+            self._relink_references(from_entry_path, into_entry_path)
+            os.rmdir(from_entry_path)
+            if os.path.lexists(from_entry_path):
+                raise ValueError(f'Could not remove "{self.rel_path(from_entry_path)}"')
+            return True
+        return False
+
+    def _merge_directory_contents(self, from_entry_path, into_entry_path):
         if not os.path.isdir(from_entry_path) or not os.path.isdir(into_entry_path):
             raise ValueError(f'Can only merge folders')
         for entry in os.listdir(from_entry_path):
             from_path = os.path.join(from_entry_path, entry)
             into_path = os.path.join(into_entry_path, entry)
             if os.path.islink(from_path) or os.path.islink(into_path):
-                self._merge_link(entry, from_path, into_path)
+                self._merge_entry_link(entry, from_path, into_path)
                 continue
             if os.path.isfile(from_path) or os.path.isfile(into_path):
-                self._merge_file(entry, from_path, into_path)
+                self._merge_entry_file(entry, from_path, into_path)
                 continue
             if os.path.isdir(from_path) or os.path.isdir(into_path):
                 raise ValueError(f'Do not support merging folders "{entry}"')
-        remainder = os.listdir(from_entry_path)
-        if len(remainder) == 0:
-            self._relink_references(from_entry_path, into_entry_path)
-            os.rmdir(from_entry_path)
-            if os.path.lexists(from_entry_path):
-                raise ValueError(f'Could not remove {from_entry}')
-            del self._list_entries[from_index - 1]
-            self._list_current_entries()
 
-    def _merge_link(self, entry, from_path, into_path):
+    def _merge_links(self, from_entry, from_index, from_entry_path, into_entry_path):
+        if not os.path.islink(from_entry_path) or not os.path.islink(into_entry_path):
+            raise ValueError(f'Cannot merge reference and non-reference')
+        from_target_path = os.path.realpath(from_entry_path)
+        into_target_path = os.path.realpath(into_entry_path)
+        if from_target_path != into_target_path:
+            if not self._merge_different_targets(from_target_path, into_target_path):
+                return
+        os.remove(from_entry_path)
+        if os.path.lexists(from_entry_path):
+            raise ValueError(f'Could not remove {from_entry}')
+        del self._list_entries[from_index - 1]
+        self._list_current_entries()
+
+    def _merge_different_targets(self, from_target_path, into_target_path) -> bool:
+        print(f'{cyan}Real Source is {self.rel_path(from_target_path)}{black}')
+        print(f'{cyan}Real Target is {self.rel_path(into_target_path)}{black}')
+        print()
+        yesno = input(f'{yellow}Do you want to merge the real source into the real target [N] ? {black}')
+        print()
+        if yesno.upper().startswith('N'):
+            return False
+        self._merge_directory_contents(from_target_path, into_target_path)
+        if self._relink_merged_from_entry(from_target_path, into_target_path):
+            return True
+        return False
+
+    def _merge_entry_link(self, entry, from_path, into_path):
         if not os.path.lexists(into_path):
             os.rename(from_path, into_path)
             if not os.path.lexists(into_path):
@@ -254,7 +291,7 @@ class FileManager:
         if os.path.lexists(from_path):
             raise ValueError(f'Failed to remove "{self.rel_path(from_path)}"')
 
-    def _merge_file(self, entry, from_path, into_path):
+    def _merge_entry_file(self, entry, from_path, into_path):
         if not os.path.lexists(into_path):
             os.rename(from_path, into_path)
             if not os.path.lexists(into_path):
