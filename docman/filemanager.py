@@ -265,15 +265,20 @@ class FileManager:
             return
         from_entry, from_index, from_entry_path = self._lookup_index_entry(request[0])
         into_entry, into_index, into_entry_path = self._lookup_index_entry(request[2])
-        if os.path.islink(from_entry_path) or os.path.islink(into_entry_path):
-            self._merge_links(from_entry, from_index, from_entry_path, into_entry_path)
-            return
-        if os.path.isfile(from_entry_path) or os.path.isfile(into_entry_path):
-            raise ValueError(f'Cannot merge files')
-        self._merge_directory_contents(from_entry_path, into_entry_path)
-        if self._relink_merged_from_entry(from_entry_path, into_entry_path):
-            del self._list_entries[from_index - 1]
-            self._list_current_entries()
+        print(f'{purple}Merge {from_index} - {from_entry} {black}')
+        print(f'{purple} Into {into_index} - {into_entry} {black}')
+        print()
+        yesno = input(f'{yellow}Are you sure [N] ? {black}')
+        if yesno.upper().startswith('Y'):
+            if os.path.islink(from_entry_path) or os.path.islink(into_entry_path):
+                self._merge_links(from_entry, from_index, from_entry_path, into_entry_path)
+                return
+            if os.path.isfile(from_entry_path) or os.path.isfile(into_entry_path):
+                raise ValueError(f'Cannot merge files')
+            self._merge_directory_contents(from_entry_path, into_entry_path)
+            if self._relink_merged_from_entry(from_entry_path, into_entry_path):
+                del self._list_entries[from_index - 1]
+                self._list_current_entries()
 
 
     def _relink_merged_from_entry(self, from_entry_path, into_entry_path) -> bool:
