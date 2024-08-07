@@ -30,7 +30,7 @@ class FileManager:
             (('OPEN',), 'Open Entry', self.open_entry,
              ['OPEN <index>']),
             (('RENAME',), 'Rename Entry', self.rename_entry,
-             ['RENAME <index> TO <new-name>']),
+             ['RENAME <index> TO <new-name>', 'RENAME <index>']),
             (('GO', 'GOTO', 'CD'), 'Go to an Entry', self.go_to_entry,
              ['GO TO <index>',
               'GOTO <index>',
@@ -226,12 +226,26 @@ class FileManager:
         self.help(['DELETE'])
 
     def rename_entry(self, request: List[str]):
-        if len(request) >= 3:
+        if len(request) == 1:
+            entry, index, entry_path = self._lookup_index_entry(request[0])
+            print(f'{blue}{index} - {entry}{black}')
+            print()
+            new_name = input(f'{yellow}Rename to ? {black}')
+        elif len(request) >= 3:
             if request[1].upper() != 'TO':
                 self.help(['RENAME'])
                 return
             entry, index, entry_path = self._lookup_index_entry(request[0])
             new_name = ' '.join(request[2:])
+        else:
+            self.help(['RENAME'])
+            return
+        print()
+        print(f'{purple}Rename {entry}{black}')
+        print(f'{purple}    To {new_name}{black}')
+        print()
+        yesno = input(f'{yellow}Are you sure [N] ? {black}')
+        if yesno.upper().startswith('Y'):
             new_path = os.path.join(self._cur_dir(), new_name)
             if os.path.lexists(new_path):
                 raise ValueError(f'"{new_name}" already exists')
@@ -239,11 +253,8 @@ class FileManager:
                 raise ValueError(f'"{entry}" does not exist')
             if os.path.islink(entry_path):
                 self._rename_link(index, entry_path, new_path, new_name)
-                return
             else:
                 self._rename_file_or_directory(index, entry_path, new_path, new_name)
-                return
-        self.help(['RENAME'])
 
     def merge_entry(self, request: List[str]):
         if len(request) != 3:
