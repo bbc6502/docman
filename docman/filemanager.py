@@ -21,6 +21,8 @@ class FileManager:
               'LIST [ENTRIES] AGAIN',
               'LIST LINKS [LIKE <pattern>]',
               'LIST LINKS AGAIN',
+              'LIST DETAILS [LIKE <pattern>]',
+              'LIST DETAILS AGAIN',
               'LIST REFERENCES TO <index>',
               'LIST REFS TO <index>',
               'LIST [ENTRIES] IN <index>',
@@ -123,8 +125,12 @@ class FileManager:
         like = None
         show_links = False
         show_references = False
+        show_details = False
         if len(request) > 0:
             if request[0].upper() == 'ENTRIES':
+                request.pop(0)
+            if request[0].upper() == 'DETAILS':
+                show_details = True
                 request.pop(0)
             elif request[0].upper() == 'LINKS':
                 show_links = True
@@ -145,11 +151,11 @@ class FileManager:
                 return
         if len(request) > 0:
             if request[0].upper() == 'AGAIN':
-                self._list_current_entries(show_links)
+                self._list_current_entries(show_details=show_details, show_links=show_links)
                 return
         likes = [r.upper() for r in request[1:]] if len(request) > 1 and request[0].upper() == 'LIKE' else []
         self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if self._is_like(entry, likes)])
-        self._list_current_entries(show_links)
+        self._list_current_entries(show_details=show_details, show_links=show_links)
 
     def _is_like(self, entry: str, likes: List[str]):
         entry = entry.upper()
@@ -168,10 +174,10 @@ class FileManager:
             else:
                 print(f'{red}{index + 1:3} - {self.rel_path(reference)}{black}')
 
-    def _list_current_entries(self, show_links=False):
-        self._list_relative_entries(self._list_entries, self._cur_dir(), show_links=show_links)
+    def _list_current_entries(self, *, show_details=False, show_links=False):
+        self._list_relative_entries(self._list_entries, self._cur_dir(), show_details=show_details, show_links=show_links)
 
-    def _list_relative_entries(self, entries, entry_dir, show_links=False):
+    def _list_relative_entries(self, entries, entry_dir, *, show_details=False, show_links=False):
         for index, entry in enumerate(entries):
             entry_path = os.path.join(entry_dir, entry)
             if os.path.islink(entry_path):
@@ -184,6 +190,9 @@ class FileManager:
                 elif os.path.isfile(entry_path):
                     if show_links:
                         print(f'{purple}{index+1:3} - {entry} {cyan}({link_target}){black}')
+                    elif show_details:
+                        stat = os.stat(entry_path)
+                        print(f'{purple}{index + 1:3} - {entry} {cyan}(Size: {stat.st_size:,}){black}')
                     else:
                         print(f'{purple}{index+1:3} - {entry}{black}')
                 else:
@@ -194,7 +203,11 @@ class FileManager:
             elif os.path.isdir(entry_path):
                 print(f'{blue}{index+1:3} - {entry}{black}')
             elif os.path.isfile(entry_path):
-                print(f'{purple}{index+1:3} - {entry}{black}')
+                if show_details:
+                    stat = os.stat(entry_path)
+                    print(f'{purple}{index+1:3} - {entry} {cyan}(Size: {stat.st_size:,}){black}')
+                else:
+                    print(f'{purple}{index + 1:3} - {entry}{black}')
             else:
                 print(f'{red}{index+1:3} - {entry}{black}')
 
