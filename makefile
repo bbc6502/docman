@@ -32,4 +32,4 @@ run: requirements
 	python3 -m docman
 
 tag:
-	git tag -a 0.0.4 -m 'Added several new commands and functionality'
+	git tag -a 0.0.5 -m 'Added several new commands and functionality'
