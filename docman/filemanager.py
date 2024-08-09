@@ -228,14 +228,24 @@ class FileManager:
             if not os.path.lexists(entry_path):
                 raise ValueError(f'"{entry}" does not exist')
             if os.path.islink(entry_path):
-                print(f'Deleting {self.rel_path(entry_path)}')
-                yesno = input('Are you sure [N] ? ')
+                print(f'{purple}Deleting reference {self.rel_path(entry_path)}{black}')
+                print()
+                yesno = input(f'{yellow}Are you sure [N] ? {black}')
                 if yesno.upper().startswith('Y'):
                     os.remove(entry_path)
                     del self._list_entries[index-1]
                     self._list_current_entries()
                 return
-            raise ValueError(f'Do not currently support deleting folders or files')
+            elif os.path.isfile(entry_path):
+                print(f'{purple}Deleting file {self.rel_path(entry_path)}{black}')
+                print()
+                yesno = input(f'{yellow}Are you sure [N] ? {black}')
+                if yesno.upper().startswith('Y'):
+                    os.remove(entry_path)
+                    del self._list_entries[index - 1]
+                    self._list_current_entries()
+                return
+            raise ValueError(f'Do not currently support deleting folders')
         self.help(['DELETE'])
 
     def rename_entry(self, request: List[str]):
@@ -420,6 +430,8 @@ class FileManager:
         self.help(['GO'])
 
     def _lookup_index_entry(self, index: str) -> Tuple[str, int, str]:
+        if self._list_entries is None:
+            raise ValueError(f'You need to list entries before using an index to it')
         if not index.isdigit():
             raise ValueError(f'Index "{index}" is not a number')
         index = int(index)
