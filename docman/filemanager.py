@@ -131,10 +131,17 @@ class FileManager:
                 new_name = ' '.join(request[1:])
                 entry_path = os.path.join(self._cur_dir(), new_name)
                 if os.path.lexists(entry_path):
-                    raise ValueError(f'Entry already exists: "{new_name}"')
+                    raise ValueError(f'Entry already exists here named "{new_name}"')
                 database_path = os.path.join(self._database_dir, new_name)
                 if not os.path.lexists(database_path):
                     os.mkdir(database_path)
+                else:
+                    print()
+                    print(f'{purple}Existing folder "{new_name}"{black}')
+                    print()
+                    yesno = input(f'{yellow}Do you want to link to the existing folder [N] ? {black}')
+                    if not yesno.upper().startswith('Y'):
+                        return
                 if not os.path.lexists(entry_path):
                     link_target = os.path.relpath(database_path, self._cur_dir())
                     os.symlink(link_target, entry_path)
