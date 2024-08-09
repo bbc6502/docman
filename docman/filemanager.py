@@ -175,7 +175,7 @@ class FileManager:
                 raise ValueError(f'Expected LIST REFERENCES TO <index>')
             if request[0].upper() == 'IN':
                 entry, index, entry_path = self._lookup_index_entry(request[1])
-                self._list_entries_in_entry(entry_path)
+                self._list_entries_in_entry(entry_path, show_details=show_details, show_links=show_links)
                 return
         if len(request) > 0:
             if request[0].upper() == 'AGAIN':
@@ -302,6 +302,7 @@ class FileManager:
                 print(f'{purple}Deleting file {self.rel_path(entry_path)}{black}')
                 print()
                 yesno = input(f'{yellow}Are you sure [N] ? {black}')
+                print()
                 if yesno.upper().startswith('Y'):
                     os.remove(entry_path)
                     del self._list_entries[index - 1]
@@ -639,9 +640,9 @@ class FileManager:
                     if not os.path.lexists(reference_path):
                         raise ValueError(f'Failed to relink {reference_path} to {link_target}')
 
-    def _list_entries_in_entry(self, entry_path):
+    def _list_entries_in_entry(self, entry_path, show_details=False, show_links=False):
         entries = sorted([entry for entry in os.listdir(entry_path)])
-        self._list_relative_entries(entries, entry_path)
+        self._list_relative_entries(entries, entry_path, show_details=show_details, show_links=show_links)
 
 
 def main():
