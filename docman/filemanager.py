@@ -44,6 +44,8 @@ class FileManager:
              ['DELETE <index>']),
             (('MERGE',), 'Merge two entries', self.merge_entry,
              ['MERGE <index-1> INTO <index-2>']),
+            (('MOVE',), 'Move a file into a folder', self.move_entry,
+             ['MOVE <index-1> INTO <index-2>']),
             (('CREATE',), 'Create entry', self.create_entry,
              ['CREATE FOLDER <name>']),
             (('VERIFY',), 'Verify database', self.verify_database,
@@ -331,6 +333,35 @@ class FileManager:
                 self._rename_link(index, entry_path, new_path, new_name)
             else:
                 self._rename_file_or_directory(index, entry_path, new_path, new_name)
+
+    def move_entry(self, request: List[str]):
+        if len(request) != 3:
+            self.help(['MOVE'])
+            return
+        if request[1].upper() != 'INTO':
+            self.help(['MOVE'])
+            return
+        from_entry, from_index, from_entry_path = self._lookup_index_entry(request[0])
+        into_entry, into_index, into_entry_path = self._lookup_index_entry(request[2])
+        print(f'{purple}Move {from_index} - {from_entry} {black}')
+        print(f'{purple}Into {into_index} - {into_entry} {black}')
+        print()
+        yesno = input(f'{yellow}Are you sure [N] ? {black}')
+        if yesno.upper().startswith('Y'):
+            if not os.path.isfile(from_entry_path):
+                raise ValueError(f'"{from_entry}" is not a file')
+            if not os.path.isdir(into_entry_path):
+                raise ValueError(f'"{from_entry}" is not a folder')
+            target_path = os.path.join(into_entry_path, from_entry)
+            if os.path.exists(target_path):
+                raise ValueError(f'"{from_entry}" already exists in the folder')
+            os.rename(from_entry_path, target_path)
+            if not os.path.exists(target_path):
+                raise ValueError(f'"{from_entry}" failed to move into the folder')
+            if os.path.lexists(from_entry_path):
+                raise ValueError(f'"{from_entry}" failed to move from this folder')
+            del self._list_entries[from_index - 1]
+            self._list_current_entries()
 
     def merge_entry(self, request: List[str]):
         if len(request) != 3:
