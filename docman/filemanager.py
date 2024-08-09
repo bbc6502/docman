@@ -377,6 +377,7 @@ class FileManager:
         self._list_current_entries()
 
     def _merge_different_targets(self, from_target_path, into_target_path) -> bool:
+        print()
         print(f'{cyan}Real Source is {self.rel_path(from_target_path)}{black}')
         print(f'{cyan}Real Target is {self.rel_path(into_target_path)}{black}')
         print()
