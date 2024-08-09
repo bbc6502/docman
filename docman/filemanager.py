@@ -44,6 +44,8 @@ class FileManager:
              ['DELETE <index>']),
             (('MERGE',), 'Merge two entries', self.merge_entry,
              ['MERGE <index-1> INTO <index-2>']),
+            (('CREATE',), 'Create entry', self.create_entry,
+             ['CREATE FOLDER <name>']),
             (('VERIFY',), 'Verify database', self.verify_database,
              ['VERIFY']),
             (('HELP',), 'Help', self.help,
@@ -120,6 +122,24 @@ class FileManager:
             else:
                 count_entries += 1
         return count_entries, count_links, count_errors
+
+    def create_entry(self, request: List[str]):
+        if len(request) > 0:
+            if request[0].upper() == 'FOLDER':
+                new_name = ' '.join(request[1:])
+                entry_path = os.path.join(self._cur_dir(), new_name)
+                if os.path.lexists(entry_path):
+                    raise ValueError(f'Entry already exists: "{new_name}"')
+                database_path = os.path.join(self._database_dir, new_name)
+                if not os.path.lexists(database_path):
+                    os.mkdir(database_path)
+                if not os.path.lexists(entry_path):
+                    link_target = os.path.relpath(database_path, self._cur_dir())
+                    os.symlink(link_target, entry_path)
+                    if not os.path.lexists(entry_path):
+                        raise ValueError(f'Failed to create "{new_name}"')
+                return
+        self.help(['CREATE'])
 
     def list_entries(self, request: List[str]):
         show_links = False
