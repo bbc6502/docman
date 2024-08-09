@@ -122,7 +122,6 @@ class FileManager:
         return count_entries, count_links, count_errors
 
     def list_entries(self, request: List[str]):
-        like = None
         show_links = False
         show_references = False
         show_details = False
@@ -153,14 +152,48 @@ class FileManager:
             if request[0].upper() == 'AGAIN':
                 self._list_current_entries(show_details=show_details, show_links=show_links)
                 return
-        likes = [r.upper() for r in request[1:]] if len(request) > 1 and request[0].upper() == 'LIKE' else []
+        likes = request[1:] if len(request) > 1 and request[0].upper() == 'LIKE' else []
         self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if self._is_like(entry, likes)])
         self._list_current_entries(show_details=show_details, show_links=show_links)
 
     def _is_like(self, entry: str, likes: List[str]):
-        entry = entry.upper()
-        for like in likes:
-            if like not in entry:
+        words = [word.lower() for word in entry.split()]
+        likes = [like.lower() for like in likes]
+        for like in list(likes):
+            if like.startswith('*') and like.endswith('*'):
+                matched = False
+                for word in words:
+                    if like[1:-1] in word:
+                        matched = True
+                        words.remove(word)
+                        break
+                if not matched:
+                    return False
+                continue
+            if like.endswith('*'):
+                matched = False
+                for word in words:
+                    if word.startswith(like[0:-1]):
+                        matched = True
+                        words.remove(word)
+                        break
+                if not matched:
+                    return False
+                continue
+            if like.startswith('*'):
+                matched = False
+                for word in words:
+                    if word.endswith(like[1:]):
+                        matched = True
+                        words.remove(word)
+                        break
+                if not matched:
+                    return False
+                continue
+            if like in words:
+                words.remove(like)
+                continue
+            else:
                 return False
         return True
 
