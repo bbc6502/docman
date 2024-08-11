@@ -282,7 +282,8 @@ class FileManager:
             if os.path.lexists(entry_path):
                 if os.path.isfile(entry_path):
                     print(f'{green}Open {self.rel_path(entry_path)}{black}')
-                    os.system(f'xdg-open \'{entry_path}\'')
+                    safe_path = entry_path.replace("'", "'\\''")
+                    os.system(f'xdg-open \'{safe_path}\'')
 
     def delete_entry(self, request: List[str]):
         if len(request) == 1:
