@@ -36,6 +36,7 @@ class FileManager:
             (('GO', 'GOTO', 'CD'), 'Go to an Entry', self.go_to_entry,
              ['GO TO <index>',
               'GOTO <index>',
+              'GO TO <entry>',
               'GO BACK',
               'GO HOME']),
             (('RETURN',), 'Return to prior Entry', self.go_back,
@@ -513,14 +514,26 @@ class FileManager:
             if request[0].upper() == 'BACK' or request[0] == '..':
                 self._pop_dir_path()
                 return
-            entry, index, entry_path = self._lookup_index_entry(request[0])
-            new_path = os.path.realpath(entry_path)
-            if not os.path.isdir(new_path):
-                raise ValueError(f'Not a directory: {self.rel_path(new_path)}')
-            if not new_path.startswith(self._database_dir):
-                raise ValueError(f'Not in the database: {self.rel_path(new_path)}')
-            self._push_dir_path(new_path)
-            return
+            if request[0].isdigit():
+                entry, index, entry_path = self._lookup_index_entry(request[0])
+                new_path = os.path.realpath(entry_path)
+                if not os.path.isdir(new_path):
+                    raise ValueError(f'Not a directory: {self.rel_path(new_path)}')
+                if not new_path.startswith(self._database_dir):
+                    raise ValueError(f'Not in the database: {self.rel_path(new_path)}')
+                self._push_dir_path(new_path)
+                return
+        if len(request) > 0:
+            entry_name = ' '.join(request)
+            dir_names = [entry for entry in os.listdir(self._cur_dir()) if entry.lower() == entry_name.lower()]
+            if len(dir_names) > 0:
+                new_path = os.path.realpath(os.path.join(self._cur_dir(), dir_names[0]))
+                if not os.path.isdir(new_path):
+                    raise ValueError(f'Not a directory: {self.rel_path(new_path)}')
+                if not new_path.startswith(self._database_dir):
+                    raise ValueError(f'Not in the database: {self.rel_path(new_path)}')
+                self._push_dir_path(new_path)
+                return
         self.help(['GO'])
 
     def _lookup_index_entry(self, index: str) -> Tuple[str, int, str]:
