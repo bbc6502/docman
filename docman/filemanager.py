@@ -49,6 +49,8 @@ class FileManager:
              ['MOVE <index-1> INTO <index-2>']),
             (('CREATE',), 'Create entry', self.create_entry,
              ['CREATE FOLDER <name>']),
+            (('FIND',), 'Find entries', self.find_entries,
+             ['FIND <pattern>']),
             (('VERIFY',), 'Verify database', self.verify_database,
              ['VERIFY']),
             (('HELP',), 'Help', self.help,
@@ -151,7 +153,7 @@ class FileManager:
                 return
         self.help(['CREATE'])
 
-    def list_entries(self, request: List[str]):
+    def _parse_entry_criteria(self, request: List[str]):
         show_links = False
         show_references = False
         show_details = False
@@ -167,6 +169,26 @@ class FileManager:
             elif request[0].upper() in ('REFS', 'REFERENCES'):
                 show_references = True
                 request.pop(0)
+        return show_links, show_references, show_details
+
+    def find_entries(self, request: List[str]):
+        show_links, show_references, show_details = self._parse_entry_criteria(request)
+        likes = request
+        entries = []
+        for root, dirs, files in os.walk(self._database_dir, followlinks=False):
+            for dir in dirs:
+                if self._is_like(dir, likes):
+                    act_path = os.path.join(root, dir)
+                    entries.append(act_path)
+            for file in files:
+                if self._is_like(file, likes):
+                    act_path = os.path.join(root, file)
+                    entries.append(act_path)
+        self._list_entries = sorted(entries)
+        self._list_current_entries(show_details=show_details, show_links=show_links)
+
+    def list_entries(self, request: List[str]):
+        show_links, show_references, show_details = self._parse_entry_criteria(request)
         if len(request) > 1:
             if show_references:
                 if request[0].upper() == 'TO':
@@ -183,7 +205,12 @@ class FileManager:
                 self._list_current_entries(show_details=show_details, show_links=show_links)
                 return
         likes = request[1:] if len(request) > 1 and request[0].upper() == 'LIKE' else []
-        self._list_entries = sorted([entry for entry in os.listdir(self._cur_dir()) if self._is_like(entry, likes)])
+        entries = [
+            os.path.join(self._cur_dir(), entry)
+            for entry in os.listdir(self._cur_dir())
+            if self._is_like(entry, likes)
+        ]
+        self._list_entries = sorted(entries)
         self._list_current_entries(show_details=show_details, show_links=show_links)
 
     def _is_like(self, entry: str, likes: List[str]):
@@ -238,41 +265,41 @@ class FileManager:
                 print(f'{red}{index + 1:3} - {self.rel_path(reference)}{black}')
 
     def _list_current_entries(self, *, show_details=False, show_links=False):
-        self._list_relative_entries(self._list_entries, self._cur_dir(), show_details=show_details, show_links=show_links)
+        self._list_relative_entries(self._list_entries, show_details=show_details, show_links=show_links)
 
-    def _list_relative_entries(self, entries, entry_dir, *, show_details=False, show_links=False):
-        for index, entry in enumerate(entries):
-            entry_path = os.path.join(entry_dir, entry)
+    def _list_relative_entries(self, entries, *, show_details=False, show_links=False):
+        for index, entry_path in enumerate(entries):
+            dir_path = os.path.dirname(entry_path)
+            entry = os.path.basename(entry_path)
+
+            if os.path.isdir(entry_path):
+                entry_text = [f'{blue}{index+1:3} - {entry}']
+            elif os.path.isfile(entry_path):
+                entry_text = [f'{purple}{index + 1:3} - {entry}']
+            else:
+                entry_text = [f'{red}{index+1:3} - {entry}']
+
+            if show_details:
+                stat = os.stat(entry_path)
+                entry_text.append(f'{cyan}(Size: {stat.st_size:,})')
+
             if os.path.islink(entry_path):
                 link_target = self.rel_path(os.path.realpath(entry_path))
                 if os.path.isdir(entry_path):
                     if show_links:
-                        print(f'{blue}{index+1:3} - {entry} {cyan}({link_target}){black}')
-                    else:
-                        print(f'{blue}{index+1:3} - {entry}{black}')
+                        entry_text.append(f'{cyan}({link_target})')
                 elif os.path.isfile(entry_path):
                     if show_links:
-                        print(f'{purple}{index+1:3} - {entry} {cyan}({link_target}){black}')
-                    elif show_details:
-                        stat = os.stat(entry_path)
-                        print(f'{purple}{index + 1:3} - {entry} {cyan}(Size: {stat.st_size:,}){black}')
-                    else:
-                        print(f'{purple}{index+1:3} - {entry}{black}')
+                        entry_text.append(f'{cyan}({link_target})')
                 else:
                     if show_links:
-                        print(f'{red}{index+1:3} - {entry} {cyan}({link_target}){black}')
-                    else:
-                        print(f'{red}{index+1:3} - {entry}{black}')
-            elif os.path.isdir(entry_path):
-                print(f'{blue}{index+1:3} - {entry}{black}')
-            elif os.path.isfile(entry_path):
-                if show_details:
-                    stat = os.stat(entry_path)
-                    print(f'{purple}{index+1:3} - {entry} {cyan}(Size: {stat.st_size:,}){black}')
-                else:
-                    print(f'{purple}{index + 1:3} - {entry}{black}')
-            else:
-                print(f'{red}{index+1:3} - {entry}{black}')
+                        entry_text.append(f'{cyan}({link_target})')
+
+            if dir_path != self._cur_dir():
+                rel_path = self.rel_path(dir_path)
+                entry_text.append(f'{green}({rel_path})')
+
+            print(*entry_text, f'{black}')
 
     def view_entry(self, request: List[str]):
         print(f'{red}Not implemented yet{black}')
@@ -544,7 +571,7 @@ class FileManager:
         index = int(index)
         if index < 1 or index > len(self._list_entries):
             raise ValueError(f'Index "{index}" out of range')
-        return self._list_entries[index-1], index, os.path.join(self._cur_dir(), self._list_entries[index-1])
+        return os.path.basename(self._list_entries[index-1]), index, self._list_entries[index-1]
 
     def help(self, request: List[str]):
         if len(request) > 0:
@@ -610,7 +637,7 @@ class FileManager:
             os.symlink(link_target, new_path)
             if not os.path.lexists(new_path):
                 raise ValueError(f'Failed to create "{new_name}"')
-            self._list_entries[index - 1] = new_name
+            self._list_entries[index - 1] = new_path
             self._list_entries.sort()
             os.remove(entry_path)
             if os.path.lexists(entry_path):
@@ -625,7 +652,7 @@ class FileManager:
             if not os.path.lexists(new_path) or os.path.lexists(entry_path):
                 raise ValueError(f'Failed to rename to "{new_name}"')
             self._relink_references(entry_path, new_path)
-            self._list_entries[index - 1] = new_name
+            self._list_entries[index - 1] = new_path
             self._list_entries.sort()
             self._list_current_entries()
         elif os.path.isfile(entry_path):
@@ -633,7 +660,7 @@ class FileManager:
             if not os.path.lexists(new_path) or os.path.lexists(entry_path):
                 raise ValueError(f'Failed to rename to "{new_name}"')
             self._relink_references(entry_path, new_path)
-            self._list_entries[index - 1] = new_name
+            self._list_entries[index - 1] = new_path
             self._list_entries.sort()
             self._list_current_entries()
         else:
@@ -655,8 +682,8 @@ class FileManager:
                         raise ValueError(f'Failed to relink {reference_path} to {link_target}')
 
     def _list_entries_in_entry(self, entry_path, show_details=False, show_links=False):
-        entries = sorted([entry for entry in os.listdir(entry_path)])
-        self._list_relative_entries(entries, entry_path, show_details=show_details, show_links=show_links)
+        entries = sorted([os.path.join(entry_path, entry) for entry in os.listdir(entry_path)])
+        self._list_relative_entries(entries, show_details=show_details, show_links=show_links)
 
 
 def main():
