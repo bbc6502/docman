@@ -544,6 +544,8 @@ class FileManager:
             if request[0].isdigit():
                 entry, index, entry_path = self._lookup_index_entry(request[0])
                 new_path = os.path.realpath(entry_path)
+                if os.path.isfile(new_path):
+                    new_path = os.path.dirname(new_path)
                 if not os.path.isdir(new_path):
                     raise ValueError(f'Not a directory: {self.rel_path(new_path)}')
                 if not new_path.startswith(self._database_dir):
