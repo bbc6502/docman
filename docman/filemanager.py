@@ -345,12 +345,14 @@ class FileManager:
             entry, index, entry_path = self._lookup_index_entry(request[0])
             print(f'{blue}{index} - {entry}{black}')
             print()
+            entry_dir = os.path.dirname(entry_path)
             new_name = input(f'{yellow}Rename to ? {black}')
         elif len(request) >= 3:
             if request[1].upper() != 'TO':
                 self.help(['RENAME'])
                 return
             entry, index, entry_path = self._lookup_index_entry(request[0])
+            entry_dir = os.path.dirname(entry_path)
             new_name = ' '.join(request[2:])
         else:
             self.help(['RENAME'])
@@ -361,7 +363,7 @@ class FileManager:
         print()
         yesno = input(f'{yellow}Are you sure [N] ? {black}')
         if yesno.upper().startswith('Y'):
-            new_path = os.path.join(self._cur_dir(), new_name)
+            new_path = os.path.join(entry_dir, new_name)
             if os.path.lexists(new_path):
                 raise ValueError(f'"{new_name}" already exists')
             if not os.path.lexists(entry_path):
@@ -554,7 +556,11 @@ class FileManager:
                 return
         if len(request) > 0:
             entry_name = ' '.join(request)
-            dir_names = [entry for entry in os.listdir(self._cur_dir()) if entry.lower() == entry_name.lower()]
+            dir_names = [
+                entry
+                for entry in os.listdir(self._cur_dir())
+                if entry.lower() == entry_name.lower()
+            ]
             if len(dir_names) > 0:
                 new_path = os.path.realpath(os.path.join(self._cur_dir(), dir_names[0]))
                 if not os.path.isdir(new_path):
