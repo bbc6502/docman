@@ -120,6 +120,7 @@ class FileManager:
                 rel_path = self.rel_path(real_path)
                 if not os.path.lexists(real_path):
                     print(f'{red}Missing target {rel_path}')
+                    self._repair_missing_target(dir_path, real_path, root_path)
                     count_errors += 1
                 elif not rel_path.startswith('Database/'):
                     print(f'{red}Reference to external resource {rel_path}')
@@ -127,6 +128,27 @@ class FileManager:
             else:
                 count_entries += 1
         return count_entries, count_links, count_errors
+
+    def _repair_missing_target(self, dir_path, real_path, root_path):
+        target_name = os.path.basename(real_path)
+        for root, dirs, files in os.walk(self._database_dir):
+            for dir in dirs:
+                if dir == target_name:
+                    new_dir_path = os.path.join(root, dir)
+                    new_rel_path = self.rel_path(new_dir_path)
+                    print()
+                    print(f'{purple}{new_rel_path}{black}')
+                    print()
+                    yesno = input(f'{yellow}Would you like to link to here [N] ? {black}')
+                    if yesno.upper().startswith('Y'):
+                        link_target = os.path.relpath(new_dir_path, root_path)
+                        os.remove(dir_path)
+                        if os.path.lexists(dir_path):
+                            raise ValueError(f'Failed to remove old "{self.rel_path(dir_path)}"')
+                        os.symlink(link_target, dir_path)
+                        if not os.path.lexists(dir_path):
+                            raise ValueError(f'Failed to create "{self.rel_path(dir_path)}"')
+                        return
 
     def create_entry(self, request: List[str]):
         if len(request) > 0:
